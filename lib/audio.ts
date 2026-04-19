@@ -1,0 +1,63 @@
+import { execSync } from 'child_process'
+import fs from 'fs'
+import path from 'path'
+import os from 'os'
+
+const FFMPEG = 'C:\\ffmpeg\\bin\\ffmpeg.exe'
+
+export async function mergeAudioFiles(
+  audioBuffers: Array<{ audio: Buffer; sfx?: string }>,
+  outputPath: string
+): Promise<void> {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'roastcast-'))
+
+  try {
+    const segmentPaths: string[] = []
+
+    const introPath = path.join(process.cwd(), 'public', 'sfx', 'intro.mp3')
+    if (fs.existsSync(introPath)) {
+      const trimmedIntro = path.join(tmpDir, 'intro_trim.mp3')
+      execSync(`"${FFMPEG}" -i "${introPath}" -t 4 -af "afade=out:st=3:d=1" "${trimmedIntro}" -y -loglevel quiet`)
+      segmentPaths.push(trimmedIntro)
+    }
+
+    for (let i = 0; i < audioBuffers.length; i++) {
+      const { audio, sfx } = audioBuffers[i]
+
+      const silencePath = path.join(tmpDir, `silence_${i}.mp3`)
+      execSync(
+        `"${FFMPEG}" -f lavfi -i anullsrc=r=44100:cl=stereo -t 0.3 -q:a 9 -acodec libmp3lame "${silencePath}" -y -loglevel quiet`
+      )
+      segmentPaths.push(silencePath)
+
+      const dialoguePath = path.join(tmpDir, `line_${i}.mp3`)
+      fs.writeFileSync(dialoguePath, audio)
+      segmentPaths.push(dialoguePath)
+
+      if (sfx) {
+        const sfxPath = path.join(process.cwd(), 'public', 'sfx', `${sfx}.mp3`)
+        if (fs.existsSync(sfxPath)) {
+          const sfxTrimmed = path.join(tmpDir, `sfx_${i}.mp3`)
+          execSync(`"${FFMPEG}" -i "${sfxPath}" -t 2.5 -af "afade=out:st=2:d=0.5" "${sfxTrimmed}" -y -loglevel quiet`)
+          segmentPaths.push(sfxTrimmed)
+        }
+      }
+    }
+
+    const outroPath = path.join(process.cwd(), 'public', 'sfx', 'outro.mp3')
+    if (fs.existsSync(outroPath)) {
+      const trimmedOutro = path.join(tmpDir, 'outro_trim.mp3')
+      execSync(`"${FFMPEG}" -i "${outroPath}" -t 5 -af "afade=in:st=0:d=1,afade=out:st=4:d=1" "${trimmedOutro}" -y -loglevel quiet`)
+      segmentPaths.push(trimmedOutro)
+    }
+
+    const listPath = path.join(tmpDir, 'list.txt')
+    fs.writeFileSync(listPath, segmentPaths.map((p) => `file '${p}'`).join('\n'))
+
+    execSync(
+      `"${FFMPEG}" -f concat -safe 0 -i "${listPath}" -ar 44100 -ac 2 -b:a 192k "${outputPath}" -y -loglevel quiet`
+    )
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+}

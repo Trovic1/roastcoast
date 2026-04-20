@@ -2,8 +2,17 @@ import { execSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
+import ffmpegPath from 'ffmpeg-static';
 
-const FFMPEG = 'C:\\ffmpeg\\bin\\ffmpeg.exe'
+/**
+ * We ensure the ffmpeg binary has the correct permissions.
+ * On some hosting providers, binaries in node_modules aren't executable by default.
+ */
+if (ffmpegPath) {
+  fs.chmodSync(ffmpegPath, '755');
+}
+
+const FFMPEG = ffmpegPath;
 
 export async function mergeAudioFiles(
   audioBuffers: Array<{ audio: Buffer; sfx?: string }>,

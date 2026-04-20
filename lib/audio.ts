@@ -2,22 +2,21 @@ import { execSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
-import ffmpegPath from 'ffmpeg-static';
-
-/**
- * We ensure the ffmpeg binary has the correct permissions.
- * On some hosting providers, binaries in node_modules aren't executable by default.
- */
-if (ffmpegPath) {
-  fs.chmodSync(ffmpegPath, '755');
-}
-
-const FFMPEG = ffmpegPath;
+import ffmpegPath from 'ffmpeg-static'
 
 export async function mergeAudioFiles(
   audioBuffers: Array<{ audio: Buffer; sfx?: string }>,
   outputPath: string
 ): Promise<void> {
+  // 1. Initialize FFmpeg dynamically to prevent Next.js build-time errors
+  if (!ffmpegPath) {
+    throw new Error('FFmpeg path not found');
+  }
+
+  // 2. Ensure execution permissions for the static binary
+  fs.chmodSync(ffmpegPath, '755');
+  const FFMPEG = ffmpegPath;
+
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'roastcast-'))
 
   try {

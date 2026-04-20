@@ -4,6 +4,7 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 
+export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   try {
     const { audioData, username } = await req.json()
